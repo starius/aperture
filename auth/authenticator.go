@@ -71,6 +71,11 @@ func (l *L402Authenticator) Accept(header *http.Header, serviceName string) bool
 	return true
 }
 
+const (
+	lsatAuthScheme = "LSAT"
+	l402AuthScheme = "L402"
+)
+
 // FreshChallengeHeader returns a header containing a challenge for the user to
 // complete.
 //
@@ -95,11 +100,18 @@ func (l *L402Authenticator) FreshChallengeHeader(r *http.Request,
 		log.Errorf("Error serializing L402: %v", err)
 	}
 
-	str := fmt.Sprintf("LSAT macaroon=\"%s\", invoice=\"%s\"",
+	str := fmt.Sprintf("macaroon=\"%s\", invoice=\"%s\"",
 		base64.StdEncoding.EncodeToString(macBytes), paymentRequest)
 	header := r.Header
-	header.Set("WWW-Authenticate", str)
+	// Old loop software (via ClientInterceptor code of aperture) looks
+	// for "LSAT" in the first instance of WWW-Authenticate header, so
+	// legacy header must go first not to break backward compatibility.
+	lsatValue := lsatAuthScheme + " " + str
+	l402Value := l402AuthScheme + " " + str
+	header.Set("WWW-Authenticate", lsatValue)
+	log.Debugf("Created new challenge header: [%s]", lsatValue)
+	header.Add("WWW-Authenticate", l402Value)
+	log.Debugf("Created new challenge header: [%s]", l402Value)
 
-	log.Debugf("Created new challenge header: [%s]", str)
 	return header, nil
 }
